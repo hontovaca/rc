@@ -3,9 +3,10 @@ foreground { echo "* stage2 started." }
 
 foreground {
   cd /etc/s6/ok
-  if { test -d contents.d }
+  elglob -0 files contents.d/*
   redirfd -w 1 contents
-  ls contents.d
+  redirfd -r 0 /dev/null
+  cat $files
 }
 
 foreground {
