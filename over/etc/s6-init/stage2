@@ -2,16 +2,15 @@
 foreground { echo "* stage2 started." }
 
 foreground {
-  cd /etc/s6/ok
-  elglob -0 files contents.d/*
-  redirfd -w 1 contents
-  redirfd -r 0 /dev/null
-  cat $files
+  elglob -0 files /etc/s6-init/stage2.d/*
+  forx -p file { $files }
+  import -iu file
+  $file
 }
 
-foreground {
+if {
   cd /etc/s6-rc
-  if -n { test -e compiled }
+  if -nt { test -e compiled }
   if {
     backtick -in dest { readlink compiled }
     import -u dest

@@ -1,0 +1,6 @@
+#!/usr/bin/execlineb -P
+cd /etc/s6/ok
+elglob -0 files contents.d/*
+redirfd -w 1 contents
+redirfd -r 0 /dev/null
+cat $files
