@@ -1,5 +1,13 @@
 #!/usr/bin/execlineb -P
 foreground { echo "* stage2 started." }
+
+foreground {
+  cd /etc/s6/ok
+  if { test -d contents.d }
+  redirfd -w 1 contents
+  ls contents.d
+}
+
 foreground {
   cd /etc/s6-rc
   if -n { test -e compiled }
@@ -10,5 +18,6 @@ foreground {
   }
   echo "* s6-rc db recompiled."
 }
+
 if { s6-rc-init /run/s6 }
 s6-rc -u change ok
