@@ -1,0 +1,67 @@
+#!/usr/bin/ruby
+require 'yaml'
+
+dest = ARGV.shift
+Dir.mkdir dest
+
+rc = {}
+
+# read input and merge
+ARGV.each do |f|
+  YAML.load_file(f).each do |key,rec|
+    begin
+      old = rc[key] ||= {}
+      old.merge!(rec) do |key,old,new|
+        case key
+        when "type", "consumer-for", "producer-for", "extend"
+          old == new or raise "#{key}: old value #{old} differs from #{new}"
+          old
+        when "contents", "dependencies", "install" #lists
+          [*old, *new]
+        when "data", "env" #dirs
+          old.merge(new)
+        else new
+        end
+      end
+    rescue => e
+      abort "couldn't merge #{key} from #{f}: #{e}"
+    end
+  end
+end
+
+# process the input for our extensions
+rc.each do |sv,en|
+  if from = en.delete("extend")
+    en.merge! rc[from] { |k,o,n| o }
+  end
+
+  if inst = en.delete("install")
+    want, list = [*inst].partition { |e| e == !!e }
+    if want[-1] != false
+      list.each do |e|
+        rc[e]["contents"] = [*rc[e]["contents"], sv]
+      end
+    end
+  end
+end
+
+# write out the tree
+rc.each do |sv,en|
+  svdir = "#{dest}/#{sv}"
+  Dir.mkdir svdir
+
+  en.each do |base,data|
+    path = "#{svdir}/#{base}"
+    case base
+    when "data", "env"
+      Dir.mkdir path
+      data.each do |key,val|
+        File.write "#{path}/#{key}", val
+      end
+    else
+      File.write path, [*data].map { |e| e.to_s.chomp + "\n" }.join
+    end
+  end
+end
+
+puts YAML.dump rc
