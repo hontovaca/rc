@@ -65,5 +65,3 @@ rc.each do |sv,en|
     end
   end
 end
-
-puts YAML.dump rc
