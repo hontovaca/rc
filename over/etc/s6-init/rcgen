@@ -1,6 +1,8 @@
 #!/usr/bin/ruby
 require 'yaml'
 
+YAML.add_domain_type("", "file") { |ty,a| File.read a }
+
 dest = ARGV.shift
 Dir.mkdir dest
 
