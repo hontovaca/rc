@@ -1,0 +1,89 @@
+#!/usr/bin/luajit
+setmetatable(_G, {__index = function (t,k) error("global: " .. k) end})
+
+local lfs = require "lfs"
+local lyaml = require "lyaml"
+
+local function ensure_nl(s)
+  s = tostring(s):gsub("[^\n]$", "%0\n", 1)
+  return s
+end
+
+local function file_slurp(f)
+  return assert(assert(io.open(f)):read("*a"))
+end
+local function file_splat(f, s)
+  assert(io.open(f, "w")):write(ensure_nl(s))
+end
+
+local function walkout(r, t)
+  lfs.mkdir(r)
+  for k,v in pairs(t) do
+    local p = r .. "/" .. k
+    if type(v) == "table" then
+      walkout(p, v)
+    else
+      file_splat(p, v)
+    end
+  end
+end
+
+local function apply(t, a)
+  if not a then return end
+  if type(a) == "table" then
+    if #a > 0 then
+      for i,v in ipairs(a) do
+        apply(t, v)
+      end
+    else
+      t(a)
+    end
+  else
+    setfenv(assert(loadstring(a)), t)()
+  end
+end
+
+local rc = setmetatable({}, {
+  __index = function (t, k)
+    return getmetatable(t)[k]
+  end,
+
+  __newindex = function (t, k, v)
+    if type(v) == "function" then
+      getmetatable(t)[k] = setfenv(v, setmetatable({top = t}, {
+        __index = function (w, k)
+          return t[k] or _G[k]
+        end,
+        __newindex = function (w, k, v)
+          t[k] = v
+        end,
+      }))
+    else
+      rawset(t, k, v)
+    end
+  end,
+
+  __call = function (t, a, ...)
+    for k,v in pairs(a) do
+      if type(t[k]) == "function" then
+        t[k](v, t, ...)
+      else
+        if type(v) == "table" then
+          t[k] = t[k] or setmetatable({}, getmetatable(t))
+          t[k](v, k, ...)
+        else
+          t[k] = ensure_nl(ensure_nl(t[k] or "") .. v)
+        end
+      end
+    end
+  end,
+
+  file_slurp = file_slurp,
+})
+
+local dest = table.remove(arg, 1)
+for i,s in ipairs(arg) do
+  apply(rc, lyaml.load(file_slurp(s)))
+end
+
+walkout(dest, rc)
