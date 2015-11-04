@@ -34,6 +34,17 @@ local function set_walkout(t, r)
   end
 end
 
+local util = {
+  file_slurp = function (s)
+    return assert(io.open(s)):read("*a")
+  end,
+
+  realign = function (s)
+    local h, r = s:match "(%s*)(.*)"
+    return r:gsub("\n" .. h, "\n")
+  end,
+}
+
 local rc = setmetatable({}, {
   __index = function (t, k)
     local m = getmetatable(t)
@@ -42,7 +53,7 @@ local rc = setmetatable({}, {
 
   __newindex = function (t, k, v)
     if type(v) == "function" then
-      getmetatable(t)[k] = setfenv(v, {rc = t, g = _G})
+      getmetatable(t)[k] = setfenv(v, {rc = t, global = _G, util = util})
     else
       rawset(t, k, v)
     end
