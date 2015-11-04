@@ -1,89 +1,93 @@
 #!/usr/bin/luajit
 setmetatable(_G, {__index = function (t,k) error("global: " .. k) end})
 
-local lfs = require "lfs"
-local lyaml = require "lyaml"
+local ffi = require "ffi"
+ffi.cdef "int mkdir(const char *, int);"
 
 local function ensure_nl(s)
   s = tostring(s):gsub("[^\n]$", "%0\n", 1)
   return s
 end
 
-local function file_slurp(f)
-  return assert(assert(io.open(f)):read("*a"))
-end
-local function file_splat(f, s)
-  assert(io.open(f, "w")):write(ensure_nl(s))
-end
-
-local function walkout(r, t)
-  lfs.mkdir(r)
-  for k,v in pairs(t) do
-    local p = r .. "/" .. k
-    if type(v) == "table" then
-      walkout(p, v)
-    else
-      file_splat(p, v)
-    end
+local function walkout(t, r)
+  if pcall(function () return assert(t._walkout) end) then
+    t:_walkout(r)
+  else
+    assert(io.open(r, "w")):write(ensure_nl(t))
   end
 end
 
-local function apply(t, a)
-  if not a then return end
-  if type(a) == "table" then
-    if #a > 0 then
-      for i,v in ipairs(a) do
-        apply(t, v)
-      end
-    else
-      t(a)
+local function tree_walkout(t, r)
+  ffi.C.mkdir(r, 511) -- 0777 = 511
+  for k,v in pairs(t) do
+    walkout(v, r .. "/" .. k)
+  end
+end
+
+local function set_walkout(t, r)
+  local f = assert(io.open(r, "w"))
+  if true then else end
+  for k,v in pairs(t) do
+    if not v then
+      f:write(ensure_nl(k))
     end
-  else
-    setfenv(assert(loadstring(a)), t)()
   end
 end
 
 local rc = setmetatable({}, {
   __index = function (t, k)
-    return getmetatable(t)[k]
+    local m = getmetatable(t)
+    return m[k] or rawget(_G, k) or rawset(t, k, setmetatable({}, m))[k]
   end,
 
   __newindex = function (t, k, v)
     if type(v) == "function" then
-      getmetatable(t)[k] = setfenv(v, setmetatable({top = t}, {
-        __index = function (w, k)
-          return t[k] or _G[k]
-        end,
-        __newindex = function (w, k, v)
-          t[k] = v
-        end,
+      getmetatable(t)[k] = setfenv(v, setmetatable({rc = t}, {
+        __index = function (w, k) return _G[k] end,
       }))
     else
       rawset(t, k, v)
     end
   end,
 
-  __call = function (t, a, ...)
+  _apply = function (t, s)
+    t[s] = assert(loadfile(s))
+    t[s]()
+  end,
+
+  _walkout = tree_walkout,
+
+  _merge = function (t, a, f)
     for k,v in pairs(a) do
-      if type(t[k]) == "function" then
-        t[k](v, t, ...)
+      if type(v) == "table" then
+        t[k]:_merge(v, f)
       else
-        if type(v) == "table" then
-          t[k] = t[k] or setmetatable({}, getmetatable(t))
-          t[k](v, k, ...)
-        else
-          t[k] = ensure_nl(ensure_nl(t[k] or "") .. v)
-        end
+        t[k] = f(t, k, v)
       end
     end
   end,
 
-  file_slurp = file_slurp,
+  merge = function (t, a)
+    t:_merge(a, function (c, k, v)
+      rawset(c[k], "_walkout", set_walkout)
+      rawset(c[k], v, false)
+      return c[k]
+    end)
+  end,
+
+  clobber = function (t, a)
+    t:_merge(a, function (c, k, v)
+      c[k] = nil
+      rawset(c[k], "_walkout", set_walkout)
+      rawset(c[k], v, false)
+      return c[k]
+    end)
+  end,
 })
 
 local dest = table.remove(arg, 1)
 for i,s in ipairs(arg) do
-  apply(rc, lyaml.load(file_slurp(s)))
+  rc:_apply(s)
 end
 
-walkout(dest, rc)
+walkout(rc, dest)
