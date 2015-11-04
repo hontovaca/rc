@@ -37,14 +37,12 @@ end
 local rc = setmetatable({}, {
   __index = function (t, k)
     local m = getmetatable(t)
-    return m[k] or rawget(_G, k) or rawset(t, k, setmetatable({}, m))[k]
+    return m[k] or rawset(t, k, setmetatable({}, m))[k]
   end,
 
   __newindex = function (t, k, v)
     if type(v) == "function" then
-      getmetatable(t)[k] = setfenv(v, setmetatable({rc = t}, {
-        __index = function (w, k) return _G[k] end,
-      }))
+      getmetatable(t)[k] = setfenv(v, {rc = t, g = _G})
     else
       rawset(t, k, v)
     end
