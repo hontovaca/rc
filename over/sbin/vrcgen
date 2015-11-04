@@ -1,5 +1,5 @@
 #!/usr/bin/luajit
-setmetatable(_G, {__index = function (t,k) error("global: " .. k) end})
+setmetatable(_G, {__index = function (t,k) error("global: " .. k, 2) end})
 
 local ffi = require "ffi"
 ffi.cdef "int mkdir(const char *, int);"
@@ -34,69 +34,55 @@ local function set_walkout(t, r)
   end
 end
 
-local util = {
-  file_slurp = function (s)
-    return assert(io.open(s)):read("*a")
+local env = setmetatable({
+  _G = _G,
+
+  _load = function (t, s)
+    rawset(t, s, setfenv(assert(loadfile(s)), t))[s]()
   end,
 
-  realign = function (s)
-    local h, r = s:match "(%s*)(.*)"
-    return r:gsub("\n" .. h, "\n")
-  end,
-}
+  rc = setmetatable({}, {
+    __index = function (t, k)
+      local m = getmetatable(t)
+      return m[k] or rawset(t, k, setmetatable({}, m))[k]
+    end,
 
-local rc = setmetatable({}, {
-  __index = function (t, k)
-    local m = getmetatable(t)
-    return m[k] or rawset(t, k, setmetatable({}, m))[k]
-  end,
+    _walkout = tree_walkout,
 
-  __newindex = function (t, k, v)
-    if type(v) == "function" then
-      getmetatable(t)[k] = setfenv(v, {rc = t, global = _G, util = util})
-    else
-      rawset(t, k, v)
-    end
-  end,
-
-  _apply = function (t, s)
-    t[s] = assert(loadfile(s))
-    t[s]()
-  end,
-
-  _walkout = tree_walkout,
-
-  _merge = function (t, a, f)
-    for k,v in pairs(a) do
-      if type(v) == "table" then
-        t[k]:_merge(v, f)
-      else
-        t[k] = f(t, k, v)
+    _merge = function (t, a, f)
+      for k,v in pairs(a) do
+        if type(v) == "table" then
+          t[k]:_merge(v, f)
+        else
+          t[k] = f(t, k, v)
+        end
       end
-    end
-  end,
+    end,
 
-  merge = function (t, a)
-    t:_merge(a, function (c, k, v)
-      rawset(c[k], "_walkout", set_walkout)
-      rawset(c[k], v, false)
-      return c[k]
-    end)
-  end,
+    merge = function (t, a)
+      t:_merge(a, function (c, k, v)
+        c[k]._walkout = set_walkout
+        c[k][v] = false
+        return c[k]
+      end)
+    end,
 
-  clobber = function (t, a)
-    t:_merge(a, function (c, k, v)
-      c[k] = nil
-      rawset(c[k], "_walkout", set_walkout)
-      rawset(c[k], v, false)
-      return c[k]
-    end)
-  end,
-})
+    clobber = function (t, a)
+      t:_merge(a, function (c, k, v)
+        c[k] = nil
+        c[k]._walkout = set_walkout
+        c[k][v] = false
+        return c[k]
+      end)
+    end,
+  }),
+}, getmetatable(_G))
+
+
 
 local dest = table.remove(arg, 1)
 for i,s in ipairs(arg) do
-  rc:_apply(s)
+  env:_load(s)
 end
 
-walkout(rc, dest)
+walkout(env.rc, dest)

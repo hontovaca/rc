@@ -2,8 +2,9 @@
 foreground { echo "* stage2 started." }
 if {
   cd /etc/rc
-  elglob rc *.lua
-  vrcgen /run/rc $rc
+  elglob rclib /lib/rc/*.lua
+  elglob rcdef *.lua
+  vrcgen /run/rc $rclib $rcdef
 }
 if { s6-rc-compile /run/s6-db /run/rc }
 if { s6-rc-init -c /run/s6-db /run/s6 }
