@@ -20,7 +20,7 @@ end
 local function tree_walkout(t, r)
   ffi.C.mkdir(r, 511) -- 0777 = 511
   for k,v in pairs(t) do
-    walkout(v, r .. "/" .. k:gsub("_", "-"))
+    walkout(v, r .. "/" .. tostring(k):gsub("_", "-"))
   end
 end
 
