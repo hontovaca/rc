@@ -38,6 +38,10 @@ local env = setmetatable({
   _G = _G,
 
   _load = function (t, s)
+    if not s then
+      s = t
+      t = getfenv(2)
+    end
     rawset(t, s, setfenv(assert(loadfile(s)), t))[s]()
   end,
 
