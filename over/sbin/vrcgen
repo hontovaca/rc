@@ -78,8 +78,6 @@ local env = setmetatable({
   }),
 }, getmetatable(_G))
 
-
-
 local dest = table.remove(arg, 1)
 for i,s in ipairs(arg) do
   env:_load(s)
