@@ -28,7 +28,7 @@ local function set_walkout(t, r)
   local f = assert(io.open(r, "w"))
   if true then else end
   for k,v in pairs(t) do
-    if not v then
+    if k == v then
       f:write(ensure_nl(k))
     end
   end
@@ -62,7 +62,7 @@ local env = setmetatable({
     merge = function (t, a)
       t:_merge(a, function (c, k, v)
         c[k]._walkout = set_walkout
-        c[k][v] = false
+        c[k][v] = v
         return c[k]
       end)
     end,
@@ -71,7 +71,7 @@ local env = setmetatable({
       t:_merge(a, function (c, k, v)
         c[k] = nil
         c[k]._walkout = set_walkout
-        c[k][v] = false
+        c[k][v] = v
         return c[k]
       end)
     end,
