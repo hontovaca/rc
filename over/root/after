@@ -1,0 +1,6 @@
+#!/usr/bin/execlineb -S0
+if { chown root:shadow /etc/shadow }
+if { chmod 0640 /etc/shadow }
+if { apk -U add luajit s6-rc@testing }
+if { elglob ix /var/cache/apk/* rm $ix }
+rm $0
